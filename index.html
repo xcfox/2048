@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no" />
+    <title>2048</title>
+    <style type="text/css">
+        body {
+            background-color:#a6e0f0;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+        #button0{
+            position: absolute;
+            left: 20%;
+            top: 40%;
+            display: none;
+            width: 60%;
+            height: 20%;
+            background-color: rgba(250,250,250,0.33);
+            font-size: 200%;
+            color: #184683;
+        }
+        #dd{
+            background-color: #6eccec;
+            padding: 0;
+            margin:  auto;
+        }
+        #leftd{
+            position: absolute;
+            margin-left: 2%;
+            margin-right: 60%;
+            color: #ffffff;
+        }
+        #lp{
+            font-size: 400%;
+            margin-top: 10%;
+        }
+        #lpp{
+            margin-top: -20%;
+        }
+        .de{
+            background-color: rgba(138, 222, 233, 0.664);
+            position: relative;
+            text-align: center;
+            top: 3%;
+            left: 55%;
+            width: 36%;
+            height: 13%;
+            padding: 2%;
+            border:2px solid #6996d1;
+        }
+        #p1,#s0,#hwh{
+            position: relative;
+            top: 20%;
+            padding: 3;
+            margin: 3 auto; 
+            display:inline;
+            color: #002350;
+        }
+        #hwh{     
+            font-size: 144%;
+        }
+    </style>    
+
+</head>
+<body>
+
+    <div class="view" id="mainn">
+        <button id="button0" onclick="reset()"> 可能输掉了呢 <br/> 要不再来一把？ </button>
+        <div id ="dd">
+            <div id ="leftd">
+                <p id="lp">2048</p>
+                <p id="lpp">    这是一个差不多写完的2048,藏了很多很多的Bug</p>
+            </div>
+            <div id ="d1" class="de">
+                <p id ="hwh"> </p>
+            </div>
+            <div id ="d2" class="de">
+                <p id="p1">模式</p>
+                <select id="s0" onchange="reset()" >
+                        <option value="4">4×4</option>
+                        <option value="2">2×2</option>
+                        <option value="3">3×3</option>
+                        <option value="5">5×5</option>
+                        <option value="6">6×6</option>
+                        <option value="7">7×7</option>
+                        <option value="8">8×8</option>
+                        <option value="9">9×9</option>
+                </select>
+            </div>
+            <div id ="d3" class="de" onclick="reset()">
+                    <p id="p1">重新开始</p>
+            </div>
+            <div id ="d4" class="de" onclick="oneHappy()">
+                    <p id="p1">一键快乐</p>
+            </div>
+        </div>
+        <canvas id="cas" style=" background-color:#5cb147">Your Browser is Too Young</canvas>
+    </div>
+
+    <script>
+        var divv = document.getElementById("dd");
+        var canvas=document.getElementById("cas");
+        var ctx = canvas.getContext("2d");
+        var wwidth = window.innerWidth;
+        var hheight = window.innerHeight;
+        if(wwidth > hheight)
+        {
+            wwidth = hheight*2/3;
+        }
+        var ratio0 =1080/wwidth;
+        canvas.style.width=wwidth+'px';
+        canvas.style.height=wwidth+'px';
+        divv.style.width=canvas.style.width;
+        divv.style.height=hheight/3 +'px';
+        canvas.width = wwidth*ratio0;
+        canvas.height = wwidth*ratio0;
+        document.body.appendChild(canvas);
+        // Create the canvas
+
+        // Game objects
+            // var gruond = canvas.height/2-270; 
+            var gruond = 0; 
+            var myselect=document.getElementById("s0");
+            var index=myselect.selectedIndex ;
+            var brickNum = myselect.options[index].value; //阶
+            var lineWidth = Math.floor(1080/ brickNum /7) ;
+            var brickWidth = (1080-lineWidth)/brickNum -lineWidth;
+            var movingNum = 0; //当前移动砖块数
+            var blank =new Array();
+            var score = 0;
+            var maxV = 3000;
+            for(i=0;i<brickNum;i++){
+                blank[i] = new Array();
+                for(j=0;j<brickNum;j++){
+                    blank[i][j] = -1 ;
+                }
+            }
+
+            //brick
+            function brick (i,j){
+                this.ii = i;
+                this.jj = j;
+                this.x = (lineWidth+brickWidth)*i + lineWidth + brickWidth/2;
+                this.y = (lineWidth+brickWidth)*j + lineWidth + brickWidth/2;
+                this.vx = 0;
+                this.vy = 0;
+                this.width = 0;
+                this.fade = false;
+                if ( Math.random()*9<1 ) {
+                this.size = 4;
+                } else {
+                this.size = 2;
+                }
+                this.translation = false;
+                this.on = true;
+            }
+            var bricks = new Array();
+
+            // Handle keyboard controls
+            var keysDown = {};
+            var mousePos =[0,0,false];
+            var fingerPos =[0,0,false,0,0];
+
+            addEventListener("keydown", function (e) {
+                keysDown[e.keyCode] = true;
+            }, false);
+
+            addEventListener("keyup", function (e) {
+                delete keysDown[e.keyCode];
+            }, false);
+            
+            addEventListener("touchmove",function(e){
+                fingerPos[0] = e.touches[0].clientX;
+                fingerPos[1] = e.touches[0].clientY;
+            },false)
+            
+            window.ontouchstart =function(e){
+                fingerPos[3] = e.touches[0].clientX;
+                fingerPos[4] = e.touches[0].clientY;
+                fingerPos[2] = true ;
+                
+            addEventListener( "mousemove" ,function (e) {
+                //  设置mousePos 等于 鼠标坐标
+                //  e.clientX 为距离 浏览器窗口可视区域 左边的距离
+                //  e.clientY 为距离 浏览器窗口可视区域 上边的距离
+                mousePos[0] = e.clientX;
+                mousePos[1] = e.clientY;
+            },false)
+            }
+            window.ontouchend = function(){
+                fingerPos[2] =false ;
+                var dX = fingerPos[3]-fingerPos[0];
+                var dY = fingerPos[4]-fingerPos[1];
+                if ( Math.abs(dX)>Math.abs(dY) ) {
+                    if(dX>0){
+                        bricksLeft();
+                    }
+                    else{
+                        bricksRight();
+                    }
+                } else {
+                    if(dY>0){
+                        bricksUp();
+                    }
+                    else{
+                        bricksDown();
+                    }
+                }
+            }
+            window.onmousedown = function(e){
+                mousePos[0] = e.clientX;
+                mousePos[1] = e.clientY;
+                mousePos[2]= true;
+            }
+            window.onmouseup = function(){
+                mousePos[2]= false;
+            }
+
+            // Reset the game 
+            var reset = function () {          
+                myselect=document.getElementById("s0");
+                index=myselect.selectedIndex ;
+                brickNum = myselect.options[index].value; //阶
+                lineWidth = Math.floor(1080/ brickNum /7) ;
+                brickWidth = (1080-lineWidth)/brickNum -lineWidth;
+                movingNum=0;
+                score =0;
+
+                for(i=0;i<brickNum;i++){
+                    blank[i] = new Array();
+                    for(j=0;j<brickNum;j++){
+                        blank[i][j] = -1 ;
+                    }
+                }
+                document.getElementById("button0").style.display='none';
+                bricks.splice(0,bricks.length);
+                bricks.length=0;
+                var i = Math.floor(Math.random()*brickNum);
+                var j = Math.floor(Math.random()*brickNum);
+                bricks[0] = new brick (i,j); 
+                blank[i][j] = 0; 
+            };
+            var newBrick =function(){
+                var wwwh = true;
+                var whww = 0;
+                for(i in bricks){
+                    if(bricks[i].size==0){
+                        whww++;
+                    }
+                }
+                if(whww==0
+                &&brickNum*brickNum<=bricks.length){
+                    document.getElementById("button0").style.display='inline';
+                }
+                    else{
+                    if(movingNum===0){
+                        document.getElementById("button0").style.display='none';
+                        while (wwwh) {
+                            var i = Math.floor(Math.random()*brickNum);
+                            var j = Math.floor(Math.random()*brickNum);
+                            if (blank[i][j]==-1) {
+                                wwwh=false;
+                                if(bricks.length<brickNum*brickNum){
+                                    var brick0 = new brick(i,j);
+                                    blank[i][j]= bricks.length;
+                                    bricks.push(brick0);
+                                }
+                                else{
+                                    for( k in bricks){
+                                        if (bricks[k].size <= 1){
+                                            bricks[k]= new brick(i,j);
+                                            bricks[k].translation = false;
+                                            bricks[k].fade = false;
+                                            blank[i][j]= k;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }    
+                    }
+                }
+            }
+
+            var oneHappy = function(){
+                    for(i=0;i<brickNum;i++){
+                        blank[i] = new Array();
+                        for(j=0;j<brickNum;j++){
+                            blank[i][j] = -1 ;
+                        }
+                    }
+                    movingNum=0;
+                    var whhw = 0;
+                for(j=0;j<brickNum;j++){
+                    if(j%2==0){
+                        for(i=0;i<brickNum;i++){
+                        bricks[whhw] = new brick (i,j); 
+                        blank[i][j] = whhw; 
+                        if(whhw==0){
+                            bricks[whhw].size =2;
+                        }
+                        else{
+                            bricks[whhw].size =Math.pow(2,whhw)
+                        }
+                        whhw++;
+                        }
+                    }
+                    else{
+                        for(i=brickNum-1;i>=0;i--){
+                            bricks[whhw] = new brick (i,j); 
+                            blank[i][j] = whhw; 
+                            bricks[whhw].size =Math.pow(2,whhw)
+                            whhw++;
+                        }
+                    }
+                }
+            }
+
+            var bricksUp = function(){
+                for(j=0;j<brickNum;j++){
+                    for(k=0;k<brickNum;k++){
+                        var i = blank[j][k];
+                        if( i >=0
+                        &&bricks[i].translation == false
+                        &&bricks[i].jj>0
+                        &&bricks[i].size>0){
+                            bricks[i].vx = 0 ;
+                            blank[bricks[i].ii][bricks[i].jj] = -1;
+                            while(blank[bricks[i].ii][bricks[i].jj-1]<0
+                            &&bricks[i].jj-1>=0){
+                                bricks[i].jj --;                               
+                            }
+                            wwhh=blank[bricks[i].ii][bricks[i].jj-1];
+                            blank[bricks[i].ii][bricks[i].jj] = i;   
+                            if( wwhh>=0
+                                &&bricks[wwhh].size ==bricks[i].size 
+                                &&bricks[wwhh].on){
+                                // bricks[wwhh].size +=bricks[i].size ;
+                                // bricks[wwhh].width = 200;
+                                bricks[i].fade =true;
+                                bricks[i].next =wwhh;
+                                bricks[wwhh].on = false;
+                                blank[bricks[i].ii][bricks[i].jj] = -1;
+                                bricks[i].jj --;
+                                score += bricks[wwhh].size;
+                            }
+                            bricks[i].translation = true ;
+                            bricks[i].vy = -maxV;
+                            movingNum ++;
+                        }
+                    }
+                }
+            }
+
+            var bricksDown = function(){
+                for(j=0;j<brickNum;j++){
+                    for(k=brickNum-1;k>=0;k--){
+                        var i = blank[j][k];
+                        if( i>=0
+                        &&bricks[i].translation == false
+                        &&bricks[i].jj<brickNum-1
+                        &&bricks[i].size>0){
+                            bricks[i].vx = 0 ;
+                            blank[bricks[i].ii][bricks[i].jj] = -1;
+                            while(blank[bricks[i].ii][bricks[i].jj+1]<0
+                            &&bricks[i].jj+1<brickNum){
+                                bricks[i].jj ++;
+                            }
+                            wwhh=blank[bricks[i].ii][bricks[i].jj+1];
+                            blank[bricks[i].ii][bricks[i].jj] = i;   
+                            if( wwhh>=0
+                                &&bricks[wwhh].size ==bricks[i].size 
+                                &&bricks[wwhh].on){
+                                // bricks[wwhh].size +=bricks[i].size ;
+                                // bricks[wwhh].width = 200;
+                                bricks[i].fade =true;
+                                bricks[i].next =wwhh;
+                                bricks[wwhh].on = false;
+                                blank[bricks[i].ii][bricks[i].jj] = -1;
+                                bricks[i].jj ++;
+                                score += bricks[wwhh].size;
+                            }
+                            bricks[i].translation = true ;
+                            bricks[i].vy = maxV;
+                            movingNum ++;
+                        }
+                    }
+                }
+            }
+            
+            var bricksLeft = function(){
+                for(j=0;j<brickNum;j++){
+                    for(k=0;k<brickNum;k++){
+                        var i = blank[j][k];
+                        if( i >=0
+                            &&bricks[i].translation == false
+                            &&bricks[i].ii>0
+                            &&bricks[i].size>0){
+                            bricks[i].vy = 0 ;
+                            blank[bricks[i].ii][bricks[i].jj] = -1;
+                            while(bricks[i].ii-1>=0
+                            &&blank[(bricks[i].ii-1)][bricks[i].jj]<0){
+                                bricks[i].ii --;
+                            }
+                            blank[bricks[i].ii][bricks[i].jj] = i;   
+                            if(bricks[i].ii>0){
+                                wwhh=blank[(bricks[i].ii-1)][bricks[i].jj];
+                                if( wwhh>=0
+                                    &&bricks[wwhh].size ==bricks[i].size 
+                                    &&bricks[wwhh].on){
+                                    // bricks[wwhh].size +=bricks[i].size ;
+                                    // bricks[wwhh].width = 200;
+                                    bricks[wwhh].on = false;
+                                    bricks[i].fade =true;
+                                    bricks[i].next =wwhh;
+                                    blank[bricks[i].ii][bricks[i].jj] = -1;
+                                    bricks[i].ii --;
+                                    score += bricks[wwhh].size;
+                                }
+                            }
+                                bricks[i].translation = true ;
+                                bricks[i].vx = -maxV;
+                                movingNum ++;
+                            }
+                    }
+                }
+            }
+
+            var bricksRight = function(){
+                for(j=brickNum-1;j>=0;j--){
+                    for(k=0;k<brickNum;k++){
+                        var i = blank[j][k];
+                        if( i >=0
+                        &&bricks[i].translation == false
+                        &&bricks[i].ii<brickNum-1
+                        &&bricks[i].size>0){
+                            bricks[i].vy = 0 ;
+                            blank[bricks[i].ii][bricks[i].jj] = -1;
+                            while(bricks[i].ii+1<brickNum
+                            &&blank[(bricks[i].ii+1)][bricks[i].jj]<0){
+                                if(bricks[i].size ==1){
+                                    break;
+                                }
+                                bricks[i].ii ++;
+                            }
+                            blank[bricks[i].ii][bricks[i].jj] = i;   
+                            if(bricks[i].ii<brickNum-1){
+                                wwhh=blank[(bricks[i].ii+1)][bricks[i].jj];
+                                if( wwhh>=0
+                                    &&bricks[wwhh].size ==bricks[i].size 
+                                    &&bricks[wwhh].on){
+                                    // bricks[wwhh].size +=bricks[i].size ;
+                                    // bricks[wwhh].width = 200;
+                                    bricks[i].fade =true;
+                                    bricks[i].next =wwhh;
+                                    bricks[wwhh].on = false;
+                                    blank[bricks[i].ii][bricks[i].jj] = -1;
+                                    bricks[i].ii ++;
+                                    score += bricks[wwhh].size;
+                                }
+                            }
+                            bricks[i].translation = true ;
+                            bricks[i].vx = maxV;
+                            movingNum ++;
+                        }
+                    }
+                }
+            }
+            // Update game objects
+            var update = function (modifier) {
+                if(movingNum===0){
+                    if (38 in keysDown
+                    || 87 in keysDown|| 119 in keysDown) { // Player holding up
+                        bricksUp();
+                    }
+                    if (40 in keysDown
+                    || 83 in keysDown|| 115 in keysDown) { // Player holding down
+                        bricksDown();
+                    }
+                    if (37 in keysDown
+                    || 65 in keysDown|| 97 in keysDown) { // Player holding left
+                        bricksLeft();
+                    }
+                    if (39 in keysDown
+                    || 68 in keysDown|| 100 in keysDown) { // Player holding right
+                        bricksRight();
+                    }
+                    if (32 in keysDown) {
+                    }
+                    if(mousePos[2]){
+                        if (mousePos[0] > window.innerWidth/2){
+                        }
+                        else if (mousePos[0] < window.innerWidth/2){
+                        }
+                    }
+                    if(fingerPos[2]){
+                        if (fingerPos[0] > window.innerWidth/2){
+                        }
+                        else if (fingerPos[0] < window.innerWidth/2){
+                        }
+                    }
+                }
+                
+
+                for(i in bricks){
+                    if(bricks[i].size>0){
+                        bricks[i].on =true;
+                        if(bricks[i].width<brickWidth){
+                            bricks[i].width += 13*modifier*(bricks[i].width+1);
+                        }
+                        else {
+                            bricks[i].width =brickWidth;
+                        }
+                        
+                        if(bricks[i].translation){
+                                bricks[i].x += bricks[i].vx*modifier;
+                                bricks[i].y += bricks[i].vy*modifier;
+                            if(Math.pow((lineWidth+brickWidth)*bricks[i].ii + lineWidth + brickWidth/2-bricks[i].x,2)
+                            + Math.pow((lineWidth+brickWidth)*bricks[i].jj + lineWidth + brickWidth/2-bricks[i].y,2)
+                            <= Math.pow((bricks[i].vy+bricks[i].vx)*modifier*1.2,2)){
+                                bricks[i].translation = false;
+                                bricks[i].x = (lineWidth+brickWidth)*bricks[i].ii + lineWidth + brickWidth/2;
+                                bricks[i].y = (lineWidth+brickWidth)*bricks[i].jj + lineWidth + brickWidth/2;
+                                bricks[i].vx = 0;
+                                bricks[i].vy = 0;
+                                movingNum --;
+                                if(bricks[i].fade){
+                                    bricks[bricks[i].next].size +=bricks[i].size ;
+                                    bricks[bricks[i].next].width = 200;
+                                    bricks[bricks[i].next].on = false;
+                                    bricks[i].size=0;
+                                }
+                                if (movingNum ===0){
+                                    newBrick();
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+
+            };
+
+            // Draw everything
+            var render = function () {
+                    
+                    
+
+                    //画底
+                    ctx.fillStyle = "#6eccec";
+                    ctx.fillRect(0,0,1080,canvas.height);
+                    // ctx.fillStyle = "#a6e0f0";
+                    // ctx.fillRect(0,gruond,1080,1080);
+                    for(i=0;i<brickNum;i++){
+                        for(j=0;j<brickNum;j++){
+                            ctx.fillStyle ="#a1afc9";
+                            ctx.fillRect((lineWidth+brickWidth)*i+lineWidth,gruond+(lineWidth+brickWidth)*j+lineWidth,brickWidth,brickWidth);
+                        }
+                    }
+
+                    //画砖
+                    for(i in bricks){
+                        if(bricks[i].size>0){
+                            ctx.fillStyle = "#A2A6F8";
+                            ctx.fillRect(bricks[i].x -bricks[i].width/2,gruond+bricks[i].y-bricks[i].width/2,bricks[i].width,bricks[i].width);
+                            whh2=Math.log(bricks[i].size)/Math.log(2)
+                            hhw2= 11;
+                            ctx.globalAlpha = 2*hhw2/(whh2+hhw2*hhw2/whh2);
+                            ctx.fillStyle = "#DA9AF2";
+                            hhw2= 25;
+                            ctx.globalAlpha = 2*hhw2/(whh2+hhw2*hhw2/whh2);
+                            ctx.fillStyle = "#691242";
+                            ctx.fillRect(bricks[i].x -bricks[i].width/2,gruond+bricks[i].y-bricks[i].width/2,bricks[i].width,bricks[i].width);
+                            ctx.globalAlpha =1;
+                            ctx.fillStyle = "rgb(250, 250, 250)";
+                            fsize = bricks[i].width /6*(Math.log(10)/Math.log(bricks[i].size)+0.3) +bricks[i].width/8+1 ;
+                            ctx.font = fsize+"px Helvetica";
+                            ctx.textAlign = "center";
+                            ctx.textBaseline = "center";
+                            ctx.fillText(bricks[i].size,bricks[i].x , gruond+bricks[i].y+fsize/3);
+                        }
+                    }
+                    document.getElementById("hwh").innerHTML ="分数:"+score;
+
+            };
+
+            // The main game loop 
+            var main = function () {
+                var now = Date.now();
+                var delta = now - then;
+
+                update(delta / 1000);
+                render();
+
+                then = now;
+
+                // Request to do this again ASAP
+                requestAnimationFrame(main);
+            };
+
+            // Cross-browser support for requestAnimationFrame
+            var w = window;
+            requestAnimationFrame = w.requestAnimationFrame || w.webkitRequestAnimationFrame || w.msRequestAnimationFrame || w.mozRequestAnimationFrame;
+
+            // Let's play this game!
+            var then = Date.now();
+            reset();
+            main();
+    </script>
+</body>
+</html>
